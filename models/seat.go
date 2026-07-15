@@ -6,6 +6,7 @@ type SeatStatus string
 
 const (
 	SeatStatusAvailable SeatStatus = "AVAILABLE"
+	SeatStatusPending   SeatStatus = "PENDING" // เพิ่มสถานะกำลังรอจ่ายเงิน
 	SeatStatusBooked    SeatStatus = "BOOKED"
 )
 

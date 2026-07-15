@@ -19,7 +19,6 @@ func main() {
 	// 2. Initialize Database & Redis
 	database := db.InitPostgres(cfg.DatabaseURL)
 	redisClient := db.InitRedis(cfg.RedisURL, cfg.RedisPassword)
-	// หมายเหตุ: นำ _ = redisClient ออก เพราะถูกนำไปใช้ใน bookingService แล้ว
 
 	// --- 3. Modules Setup ---
 	// Event Module Setup
@@ -45,6 +44,9 @@ func main() {
 
 		api.GET("/events", eventHandler.GetEvents)
 		api.GET("/events/:id/seats", eventHandler.GetSeats)
+		
+		// 🔴 เพิ่ม Endpoint สำหรับ Stripe Webhook (ต้องเป็น Public)
+		api.POST("/webhook/stripe", bookingHandler.StripeWebhook)
 	}
 
 	// Protected Routes (ต้องล็อกอินและใช้ JWT Middleware)
