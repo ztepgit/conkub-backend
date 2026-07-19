@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log" // 🔴 เพิ่ม import log
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -30,26 +31,36 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 	// สร้าง Key สำหรับล็อคที่นั่งนี้ (เช่น "lock:seat:105")
 	lockKey := fmt.Sprintf("lock:seat:%d", req.SeatID)
 
-	// 1. Acquire Redis Lock (SET NX PX)
-	// SET NX = เซ็ตค่าถ้า Key นี้ยังไม่มี, PX = หมดอายุใน 5 วินาที
-	locked, err := s.redisClient.SetNX(ctx, lockKey, userID, 5*time.Second).Result()
-	if err != nil {
-		return "", errors.New("internal server error during locking")
-	}
-	if !locked {
-		// ถ้า set ไม่สำเร็จ แปลว่ามีคนอื่นกำลังจองที่นั่งนี้อยู่ (Fast fail)
-		return "", errors.New("seat is currently being booked by someone else")
+	// 1. เช็คว่ามี Redis ให้ใช้ไหม ถ้าไม่มีให้ข้ามไป (Bypass)
+	if s.redisClient != nil {
+		// Acquire Redis Lock (SET NX PX)
+		// SET NX = เซ็ตค่าถ้า Key นี้ยังไม่มี, PX = หมดอายุใน 5 วินาที
+		locked, err := s.redisClient.SetNX(ctx, lockKey, userID, 5*time.Second).Result()
+		if err != nil {
+			return "", errors.New("internal server error during locking")
+		}
+		if !locked {
+			// ถ้า set ไม่สำเร็จ แปลว่ามีคนอื่นกำลังจองที่นั่งนี้อยู่ (Fast fail)
+			return "", errors.New("seat is currently being booked by someone else")
+		}
+
+		// Release Redis Lock เสมอเมื่อจบการทำงาน (เฉพาะตอนที่มี Redis)
+		defer s.redisClient.Del(context.Background(), lockKey)
+	} else {
+		// ข้าม Redis lock ชั่วคราว
+		log.Println("Redis disabled, skipping seat lock")
 	}
 
-	// 2. Release Redis Lock เสมอเมื่อจบการทำงาน
-	defer s.redisClient.Del(context.Background(), lockKey)
+	// ---------------------------------------------------------
+	// ห้ามแก้โค้ดด้านล่างนี้ (Database Transaction & Stripe Flow)
+	// ---------------------------------------------------------
 
 	// สมมติว่าดึงราคามาจาก DB ได้ 2500 บาท
 	// (ในโปรเจกต์จริง ควรดึงราคาของที่นั่งรหัส req.SeatID จากตาราง seats)
 	price := 2500.00
 
 	// 3. ไปทำรายการ Database Transaction (เปลี่ยนสถานะที่นั่งเป็น PENDING)
-	err = s.repo.BookSeatTx(ctx, userID, req.EventID, req.SeatID)
+	err := s.repo.BookSeatTx(ctx, userID, req.EventID, req.SeatID)
 	if err != nil {
 		return "", err
 	}
