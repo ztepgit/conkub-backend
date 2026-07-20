@@ -1,3 +1,4 @@
+// event/dto.go
 package event
 
 import "time"

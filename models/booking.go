@@ -1,3 +1,4 @@
+// models/booking.go
 package models
 
 import "time"

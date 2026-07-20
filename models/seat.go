@@ -1,3 +1,4 @@
+// models/seat.go
 package models
 
 import "time"
