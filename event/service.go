@@ -26,11 +26,15 @@ func (s *service) GetEvents(ctx context.Context) ([]EventResponse, error) {
 	var res []EventResponse
 	for _, e := range events {
 		res = append(res, EventResponse{
-			ID:          e.ID,
-			Name:        e.Name,
-			Description: e.Description,
-			Venue:       e.Venue,
-			ShowTime:    e.ShowTime,
+			ID:               e.ID,
+			Name:             e.Name,
+			Artist:           e.Artist,           //  เพิ่มฟิลด์ใหม่
+			Description:      e.Description,
+			Venue:            e.Venue,
+			Category:         e.Category,         //  เพิ่มฟิลด์ใหม่
+			ImageURL:         e.ImageURL,         //  เพิ่มฟิลด์ใหม่
+			ShowTime:         e.ShowTime,
+			RemainingTickets: e.RemainingTickets, //  เพิ่มฟิลด์ใหม่จาก Struct EventWithTicketCount
 		})
 	}
 	return res, nil
