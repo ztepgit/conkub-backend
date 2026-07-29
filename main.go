@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"conkub-backend/booking"    // เพิ่ม Import booking module
 	"conkub-backend/config"
@@ -9,6 +10,7 @@ import (
 	"conkub-backend/event"      // Import event module
 	"conkub-backend/middleware" // เพิ่ม Import middleware module
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,6 +35,16 @@ func main() {
 
 	// 4. Setup Gin Router
 	r := gin.Default()
+
+ 	// ติดตั้ง CORS Middleware ก่อน Route และ Auth ทั้งหมด
+ 	r.Use(cors.New(cors.Config{
+ 		AllowOrigins:     []string{"http://localhost:3000"}, // รองรับ Frontend URL
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+ 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+ 		ExposeHeaders:    []string{"Content-Length"},
+ 		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+ 	}))
 
 	// Public Routes (ไม่ต้องใช้ Middleware)
 	api := r.Group("/api/v1")
