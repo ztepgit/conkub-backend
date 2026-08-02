@@ -13,8 +13,9 @@ type EventWithTicketCount struct {
 }
 
 type Repository interface {
-	// 🔴 2. ปรับ Type ที่ Return ให้เป็น EventWithTicketCount
 	FindAll(ctx context.Context) ([]EventWithTicketCount, error)
+	// 🔴 2. เพิ่มฟังก์ชันสำหรับดึง Event รายตัวตาม ID (รองรับ GET /api/v1/events/:id)
+	FindByID(ctx context.Context, id uint) (*EventWithTicketCount, error)
 	FindSeatsByEventID(ctx context.Context, eventID uint) ([]models.Seat, error)
 }
 
@@ -28,17 +29,35 @@ func NewRepository(db *gorm.DB) Repository {
 
 func (r *repository) FindAll(ctx context.Context) ([]EventWithTicketCount, error) {
 	var events []EventWithTicketCount
-	
-	// 🔴 3. ใช้ SQL Subquery นับตั๋วที่ AVAILABLE พร้อมกับ WithContext ของคุณ
+
+	// ใช้ SQL Subquery นับตั๋วที่ AVAILABLE
 	err := r.db.WithContext(ctx).
 		Table("events").
 		Select("events.*, (SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets").
 		Scan(&events).Error
-		
+
 	return events, err
 }
 
-// คงฟังก์ชันนี้ของคุณไว้ 100% ไม่ดัดแปลง
+// 🔴 3. เพิ่ม Implementation ของ FindByID โดยใช้ Subquery นับตั๋วเช่นเดียวกับ FindAll
+// เมื่อไม่พบข้อมูล GORM จะคืนค่า gorm.ErrRecordNotFound ซึ่ง Handler จะนำไปแปลงเป็น 404
+func (r *repository) FindByID(ctx context.Context, id uint) (*EventWithTicketCount, error) {
+	var event EventWithTicketCount
+
+	err := r.db.WithContext(ctx).
+		Table("events").
+		Select("events.*, (SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets").
+		Where("events.id = ?", id).
+		First(&event).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &event, nil
+}
+
+// คงฟังก์ชันนี้ไว้ 100% ไม่ดัดแปลง
 func (r *repository) FindSeatsByEventID(ctx context.Context, eventID uint) ([]models.Seat, error) {
 	var seats []models.Seat
 	err := r.db.WithContext(ctx).Where("event_id = ?", eventID).Find(&seats).Error

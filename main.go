@@ -36,15 +36,15 @@ func main() {
 	// 4. Setup Gin Router
 	r := gin.Default()
 
- 	// ติดตั้ง CORS Middleware ก่อน Route และ Auth ทั้งหมด
- 	r.Use(cors.New(cors.Config{
- 		AllowOrigins:     []string{"http://localhost:3000"}, // รองรับ Frontend URL
+	// ติดตั้ง CORS Middleware ก่อน Route และ Auth ทั้งหมด
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"}, // รองรับ Frontend URL
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
- 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
- 		ExposeHeaders:    []string{"Content-Length"},
- 		AllowCredentials: true,
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
- 	}))
+	}))
 
 	// Public Routes (ไม่ต้องใช้ Middleware)
 	api := r.Group("/api/v1")
@@ -55,6 +55,7 @@ func main() {
 		})
 
 		api.GET("/events", eventHandler.GetEvents)
+		api.GET("/events/:id", eventHandler.GetEventByID) // 🔴 เพิ่ม Route สำหรับดึงรายละเอียด Event 1 งาน (GET /api/v1/events/1)
 		api.GET("/events/:id/seats", eventHandler.GetSeats)
 		
 		// 🔴 เพิ่ม Endpoint สำหรับ Stripe Webhook (ต้องเป็น Public)

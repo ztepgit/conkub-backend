@@ -6,6 +6,8 @@ import (
 
 type Service interface {
 	GetEvents(ctx context.Context) ([]EventResponse, error)
+	// 🔴 1. เพิ่มเมธอดดึงข้อมูล Event รายตัวเข้าใน Interface
+	GetEventByID(ctx context.Context, id uint) (*EventResponse, error)
 	GetSeats(ctx context.Context, eventID uint) ([]SeatResponse, error)
 }
 
@@ -28,14 +30,35 @@ func (s *service) GetEvents(ctx context.Context) ([]EventResponse, error) {
 		res = append(res, EventResponse{
 			ID:               e.ID,
 			Name:             e.Name,
-			Artist:           e.Artist,           //  เพิ่มฟิลด์ใหม่
+			Artist:           e.Artist,
 			Description:      e.Description,
 			Venue:            e.Venue,
-			Category:         e.Category,         //  เพิ่มฟิลด์ใหม่
-			ImageURL:         e.ImageURL,         //  เพิ่มฟิลด์ใหม่
+			Category:         e.Category,
+			ImageURL:         e.ImageURL,
 			ShowTime:         e.ShowTime,
-			RemainingTickets: e.RemainingTickets, //  เพิ่มฟิลด์ใหม่จาก Struct EventWithTicketCount
+			RemainingTickets: e.RemainingTickets,
 		})
+	}
+	return res, nil
+}
+
+// 🔴 2. เพิ่ม Implementation ของ GetEventByID โดยเรียกใช้ Repo ตรงๆ และแมปค่าเป็น EventResponse
+func (s *service) GetEventByID(ctx context.Context, id uint) (*EventResponse, error) {
+	e, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &EventResponse{
+		ID:               e.ID,
+		Name:             e.Name,
+		Artist:           e.Artist,
+		Description:      e.Description,
+		Venue:            e.Venue,
+		Category:         e.Category,
+		ImageURL:         e.ImageURL,
+		ShowTime:         e.ShowTime,
+		RemainingTickets: e.RemainingTickets,
 	}
 	return res, nil
 }
