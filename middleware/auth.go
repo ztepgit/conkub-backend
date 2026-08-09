@@ -1,3 +1,4 @@
+// middleware/auth.go
 package middleware
 
 import (
@@ -30,12 +31,21 @@ func RequireAuth(jwtSecret string) gin.HandlerFunc {
 
 		// 2. Parse และ Validate JWT ด้วย Secret ของ Supabase
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			fmt.Println("🔐 JWT Algorithm:", token.Header["alg"])
 			// ตรวจสอบ Signing Method ว่าเป็น HMAC ตามที่ Supabase ใช้หรือไม่
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
 			return []byte(jwtSecret), nil
 		})
+
+		if err != nil {
+			fmt.Println("❌ JWT Parse Error:", err)
+		}
+
+		if token != nil {
+			fmt.Println("🔐 JWT Valid:", token.Valid)
+		}
 
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
