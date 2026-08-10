@@ -64,7 +64,8 @@ func main() {
 
 	// Protected Routes (ต้องล็อกอินและใช้ JWT Middleware)
 	protected := r.Group("/api/v1")
-	protected.Use(middleware.RequireAuth(cfg.SupabaseJWTSecret))
+	// 🔴 เปลี่ยนมาส่ง SupabaseJWKSURL แทน JWTSecret เพื่อรองรับอัลกอริทึม ES256
+	protected.Use(middleware.RequireAuth(cfg.SupabaseJWKSURL))
 	{
 		// หน้าบ้านจะต้องส่ง Header -> Authorization: Bearer <Supabase_Token>
 		protected.POST("/bookings", bookingHandler.BookSeat)

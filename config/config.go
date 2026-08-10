@@ -1,3 +1,4 @@
+//config/config.go
 package config
 
 import (
@@ -12,7 +13,7 @@ type Config struct {
 	DatabaseURL       string
 	RedisURL          string
 	RedisPassword     string
-	SupabaseJWTSecret string
+	SupabaseJWKSURL   string // 🔴 1. เพิ่มตัวแปรสำหรับ JWKS URL
 }
 
 func LoadConfig() *Config {
@@ -26,7 +27,7 @@ func LoadConfig() *Config {
 		DatabaseURL:       getEnv("DATABASE_URL", ""),
 		RedisURL:          getEnv("REDIS_URL", "localhost:6379"),
 		RedisPassword:     getEnv("REDIS_PASSWORD", ""),
-		SupabaseJWTSecret: getEnv("SUPABASE_JWT_SECRET", ""),
+		SupabaseJWKSURL:   getEnv("SUPABASE_JWKS_URL", ""), // 🔴 2. โหลดจาก ENV
 	}
 }
 
