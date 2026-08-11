@@ -1,3 +1,4 @@
+// booking/repository.go
 package booking
 
 import (
@@ -12,8 +13,10 @@ import (
 
 // Repository interface ประกาศ method ที่จำเป็นทั้งหมด รวมถึง ConfirmBooking
 type Repository interface {
-	BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) error
+	BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) (*models.Booking, error)
 	ConfirmBooking(ctx context.Context, seatID uint) error
+	// 🔴 1. เพิ่มฟังก์ชัน CancelBooking สำหรับยกเลิกการจอง
+	CancelBooking(ctx context.Context, bookingID uint, seatID uint) error
 }
 
 type repository struct {
@@ -25,8 +28,11 @@ func NewRepository(db *gorm.DB) Repository {
 }
 
 // BookSeatTx จัดการ Transaction และ Database Row Lock
-func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) (*models.Booking, error) {
+	// 🔴 ประกาศตัวแปร booking ไว้ด้านนอก เพื่อให้ดึงค่าออกไปรีเทิร์นตอนจบได้
+	var booking models.Booking
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var seat models.Seat
 
 		// 1. SELECT ... FOR UPDATE (ล็อค Row นี้ไว้จนกว่า Transaction จะจบ)
@@ -46,7 +52,7 @@ func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint
 		}
 
 		// 4. บันทึกประวัติการจองลงตาราง bookings
-		booking := models.Booking{
+		booking = models.Booking{
 			UserID:  userID,
 			EventID: eventID,
 			SeatID:  seatID,
@@ -57,6 +63,14 @@ func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint
 
 		return nil
 	})
+
+	// 🔴 ถ้าระหว่าง Transaction มี Error ให้คืนค่า nil คู่กับ Error นั้น
+	if err != nil {
+		return nil, err
+	}
+
+	// 🔴 ถ้าสำเร็จ คืนค่า pointer ของ booking กลับไปให้ Service
+	return &booking, nil
 }
 
 // ConfirmBooking สำหรับ Webhook ใช้เปลี่ยนสถานะเมื่อจ่ายเงินสำเร็จ
@@ -66,4 +80,31 @@ func (r *repository) ConfirmBooking(ctx context.Context, seatID uint) error {
 		Model(&models.Seat{}).
 		Where("id = ?", seatID).
 		Update("status", models.SeatStatusBooked).Error
+}
+
+// 🔴 2. Implement ฟังก์ชัน CancelBooking สำหรับลบ Booking ออกและคืนที่นั่ง
+func (r *repository) CancelBooking(ctx context.Context, bookingID uint, seatID uint) error {
+	// เปิด Transaction สำหรับการลบและการอัปเดตให้เป็น Atomic
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// ลบ Booking ขยะที่สร้างไว้ทิ้ง (ใช้ Unscoped เพื่อ Hard Delete ป้องกันข้อมูลตกค้าง)
+	if err := tx.Unscoped().Where("id = ?", bookingID).Delete(&models.Booking{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// อัปเดต Seat กลับเป็น AVAILABLE (กำหนดเงื่อนไข AND status = PENDING เพื่อความปลอดภัย)
+	result := tx.Model(&models.Seat{}).
+		Where("id = ? AND status = ?", seatID, models.SeatStatusPending).
+		Update("status", "AVAILABLE") // หากโปรเจกต์มี models.SeatStatusAvailable ให้เปลี่ยนตรงนี้ได้เลย
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	return tx.Commit().Error
 }

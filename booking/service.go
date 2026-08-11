@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log" // 🔴 เพิ่ม import log
+	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -51,16 +51,13 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 		log.Println("Redis disabled, skipping seat lock")
 	}
 
-	// ---------------------------------------------------------
-	// ห้ามแก้โค้ดด้านล่างนี้ (Database Transaction & Stripe Flow)
-	// ---------------------------------------------------------
-
 	// สมมติว่าดึงราคามาจาก DB ได้ 2500 บาท
 	// (ในโปรเจกต์จริง ควรดึงราคาของที่นั่งรหัส req.SeatID จากตาราง seats)
 	price := 2500.00
 
-	// 3. ไปทำรายการ Database Transaction (เปลี่ยนสถานะที่นั่งเป็น PENDING)
-	err := s.repo.BookSeatTx(ctx, userID, req.EventID, req.SeatID)
+	// 3. ไปทำรายการ Database Transaction (สร้าง Booking และเปลี่ยนสถานะที่นั่งเป็น PENDING)
+	// 🔴 สังเกต: เราปรับให้ BookSeatTx คืนค่า booking object กลับมาด้วยเพื่อนำ ID ไปใช้
+	booking, err := s.repo.BookSeatTx(ctx, userID, req.EventID, req.SeatID)
 	if err != nil {
 		return "", err
 	}
@@ -68,11 +65,19 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 	// 4. สร้าง Stripe Checkout URL
 	checkoutURL, err := CreateStripeCheckout(req.EventID, req.SeatID, price, userID)
 	if err != nil {
-		// หากสร้าง URL จ่ายเงินไม่สำเร็จ ควรปลดสถานะ PENDING กลับไปเป็น AVAILABLE
-		// ตัวอย่างเช่น: s.repo.CancelBooking(ctx, req.SeatID) 
+		// 🔴 หากสร้าง URL จ่ายเงินไม่สำเร็จ ให้ทำการชดเชย (Compensate) โดยเรียก CancelBooking
+		log.Printf("[BookingService] Stripe checkout failed for booking %d, seat %d. Reverting: %v", booking.ID, req.SeatID, err)
 		
-		return "", errors.New("failed to connect payment gateway, please try again")
+		cancelErr := s.repo.CancelBooking(ctx, booking.ID, req.SeatID)
+		if cancelErr != nil {
+			// หากยกเลิกไม่สำเร็จ ต้องมี Log ที่ชัดเจนเพื่อให้ Admin ตรวจสอบ (Manual Intervention)
+			log.Printf("[CRITICAL] Failed to revert seat %d to AVAILABLE for booking %d: %v", req.SeatID, booking.ID, cancelErr)
+		}
+
+		// Return error ส่งกลับไปหา Client
+		return "", fmt.Errorf("failed to create payment session, booking cancelled")
 	}
+	
 	return checkoutURL, nil
 }
 
