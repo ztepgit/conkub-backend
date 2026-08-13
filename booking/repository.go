@@ -26,7 +26,6 @@ type repository struct {
 func NewRepository(db *gorm.DB) Repository {
 	return &repository{db: db}
 }
-
 // BookSeatTx จัดการ Transaction และ Database Row Lock
 func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) (*models.Booking, error) {
 	// 🔴 ประกาศตัวแปร booking ไว้ด้านนอก เพื่อให้ดึงค่าออกไปรีเทิร์นตอนจบได้
@@ -56,7 +55,12 @@ func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint
 			UserID:  userID,
 			EventID: eventID,
 			SeatID:  seatID,
+			Status:  models.BookingStatusPending, // 🔴 เพิ่มฟิลด์ Status เป็น PENDING เพื่อแก้ปัญหา NOT NULL constraint
 		}
+
+		// *หมายเหตุ: หากใน models/booking.go มีการประกาศ Constant ไว้ เช่น models.BookingStatusPending 
+		// ให้เปลี่ยนคำว่า "PENDING" เป็น models.BookingStatusPending เพื่อความสม่ำเสมอของ Type แทนได้ครับ
+
 		if err := tx.Create(&booking).Error; err != nil {
 			return err
 		}
@@ -99,7 +103,7 @@ func (r *repository) CancelBooking(ctx context.Context, bookingID uint, seatID u
 	// อัปเดต Seat กลับเป็น AVAILABLE (กำหนดเงื่อนไข AND status = PENDING เพื่อความปลอดภัย)
 	result := tx.Model(&models.Seat{}).
 		Where("id = ? AND status = ?", seatID, models.SeatStatusPending).
-		Update("status", "AVAILABLE") // หากโปรเจกต์มี models.SeatStatusAvailable ให้เปลี่ยนตรงนี้ได้เลย
+		Update("status", models.SeatStatusAvailable)
 
 	if result.Error != nil {
 		tx.Rollback()
