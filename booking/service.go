@@ -1,3 +1,4 @@
+// booking/service.go
 package booking
 
 import (
