@@ -64,7 +64,7 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 	}
 
 	// 4. สร้าง Stripe Checkout URL
-	checkoutURL, err := CreateStripeCheckout(req.EventID, req.SeatID, price, userID)
+	checkoutURL, err := CreateStripeCheckout(booking.ID,req.EventID, req.SeatID, price, userID)
 	if err != nil {
 		// 🔴 หากสร้าง URL จ่ายเงินไม่สำเร็จ ให้ทำการชดเชย (Compensate) โดยเรียก CancelBooking
 		log.Printf("[BookingService] Stripe checkout failed for booking %d, seat %d. Reverting: %v", booking.ID, req.SeatID, err)
