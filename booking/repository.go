@@ -4,6 +4,7 @@ package booking
 import (
 	"context"
 	"errors"
+	"fmt" // 🔴 เพิ่ม fmt สำหรับใช้คืนค่า error ด้วย fmt.Errorf
 
 	"conkub-backend/models"
 
@@ -11,12 +12,13 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// Repository interface ประกาศ method ที่จำเป็นทั้งหมด รวมถึง ConfirmBooking
+// Repository interface ประกาศ method ที่จำเป็นทั้งหมด
 type Repository interface {
 	BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) (*models.Booking, error)
 	ConfirmBooking(ctx context.Context, seatID uint) error
-	// 🔴 1. เพิ่มฟังก์ชัน CancelBooking สำหรับยกเลิกการจอง
 	CancelBooking(ctx context.Context, bookingID uint, seatID uint) error
+	// 🔴 เพิ่มฟังก์ชัน ConfirmBookingTx แบบมี Idempotency และเช็ค State
+	ConfirmBookingTx(ctx context.Context, stripeEventID string, bookingID uint, seatID uint) error
 }
 
 type repository struct {
@@ -26,9 +28,10 @@ type repository struct {
 func NewRepository(db *gorm.DB) Repository {
 	return &repository{db: db}
 }
+
 // BookSeatTx จัดการ Transaction และ Database Row Lock
 func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) (*models.Booking, error) {
-	// 🔴 ประกาศตัวแปร booking ไว้ด้านนอก เพื่อให้ดึงค่าออกไปรีเทิร์นตอนจบได้
+	// ประกาศตัวแปร booking ไว้ด้านนอก เพื่อให้ดึงค่าออกไปรีเทิร์นตอนจบได้
 	var booking models.Booking
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -55,11 +58,8 @@ func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint
 			UserID:  userID,
 			EventID: eventID,
 			SeatID:  seatID,
-			Status:  models.BookingStatusPending, // 🔴 เพิ่มฟิลด์ Status เป็น PENDING เพื่อแก้ปัญหา NOT NULL constraint
+			Status:  models.BookingStatusPending,
 		}
-
-		// *หมายเหตุ: หากใน models/booking.go มีการประกาศ Constant ไว้ เช่น models.BookingStatusPending 
-		// ให้เปลี่ยนคำว่า "PENDING" เป็น models.BookingStatusPending เพื่อความสม่ำเสมอของ Type แทนได้ครับ
 
 		if err := tx.Create(&booking).Error; err != nil {
 			return err
@@ -68,16 +68,14 @@ func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint
 		return nil
 	})
 
-	// 🔴 ถ้าระหว่าง Transaction มี Error ให้คืนค่า nil คู่กับ Error นั้น
 	if err != nil {
 		return nil, err
 	}
 
-	// 🔴 ถ้าสำเร็จ คืนค่า pointer ของ booking กลับไปให้ Service
 	return &booking, nil
 }
 
-// ConfirmBooking สำหรับ Webhook ใช้เปลี่ยนสถานะเมื่อจ่ายเงินสำเร็จ
+// ConfirmBooking สำหรับ Webhook ใช้เปลี่ยนสถานะเมื่อจ่ายเงินสำเร็จ (ฟังก์ชันเดิม)
 func (r *repository) ConfirmBooking(ctx context.Context, seatID uint) error {
 	// อัปเดตสถานะที่นั่งจาก PENDING เป็น BOOKED
 	return r.db.WithContext(ctx).
@@ -86,7 +84,7 @@ func (r *repository) ConfirmBooking(ctx context.Context, seatID uint) error {
 		Update("status", models.SeatStatusBooked).Error
 }
 
-// 🔴 2. Implement ฟังก์ชัน CancelBooking สำหรับลบ Booking ออกและคืนที่นั่ง
+// CancelBooking สำหรับลบ Booking ออกและคืนที่นั่ง
 func (r *repository) CancelBooking(ctx context.Context, bookingID uint, seatID uint) error {
 	// เปิด Transaction สำหรับการลบและการอัปเดตให้เป็น Atomic
 	tx := r.db.WithContext(ctx).Begin()
@@ -111,4 +109,68 @@ func (r *repository) CancelBooking(ctx context.Context, bookingID uint, seatID u
 	}
 
 	return tx.Commit().Error
+}
+
+// 🔴 Implement ฟังก์ชัน ConfirmBookingTx
+func (r *repository) ConfirmBookingTx(ctx context.Context, stripeEventID string, bookingID uint, seatID uint) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Idempotency Check: เคยทำ Event นี้ไปหรือยัง?
+		var webhookEvent models.StripeWebhookEvent
+		err := tx.Where("stripe_event_id = ?", stripeEventID).First(&webhookEvent).Error
+		if err == nil {
+			// ทำไปแล้ว ให้ถือว่าสำเร็จ (Idempotent)
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("database error checking idempotency: %w", err)
+		}
+
+		// 2. Lock the Booking row
+		var booking models.Booking
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&booking, bookingID).Error; err != nil {
+			return fmt.Errorf("booking not found: %w", err)
+		}
+
+		// 🔴 3. Verify SeatID จาก Metadata
+		if booking.SeatID != seatID {
+			return fmt.Errorf("metadata seat_id %d does not match booking seat_id %d", seatID, booking.SeatID)
+		}
+
+		// 🔴 4. State Machine Validation
+		if booking.Status == models.BookingStatusConfirmed {
+			// ถ้าชำระแล้ว (CONFIRMED) ให้ข้ามไปและบันทึก Event ไว้ได้เลย (Idempotent)
+			webhookEvent = models.StripeWebhookEvent{StripeEventID: stripeEventID, EventType: "checkout.session.completed"}
+			return tx.Create(&webhookEvent).Error
+		} else if booking.Status != models.BookingStatusPending {
+			// ถ้าถูก Cancelled หรือ Expired ไปแล้ว ห้าม Confirm เด็ดขาด
+			return fmt.Errorf("cannot confirm booking with status: %s", booking.Status)
+		}
+
+		// 5. Lock the Seat row associated with this booking
+		var seat models.Seat
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&seat, booking.SeatID).Error; err != nil {
+			return fmt.Errorf("seat not found: %w", err)
+		}
+
+		// 6. Update Statuses
+		booking.Status = models.BookingStatusConfirmed
+		if err := tx.Save(&booking).Error; err != nil {
+			return fmt.Errorf("failed to update booking: %w", err)
+		}
+
+		seat.Status = models.SeatStatusBooked
+		if err := tx.Save(&seat).Error; err != nil {
+			return fmt.Errorf("failed to update seat: %w", err)
+		}
+
+		// 7. Save Idempotency Record
+		webhookEvent = models.StripeWebhookEvent{
+			StripeEventID: stripeEventID,
+			EventType:     "checkout.session.completed",
+		}
+		if err := tx.Create(&webhookEvent).Error; err != nil {
+			return fmt.Errorf("failed to save webhook event: %w", err)
+		}
+
+		return nil
+	})
 }

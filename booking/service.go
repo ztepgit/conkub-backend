@@ -3,12 +3,17 @@ package booking
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/stripe/stripe-go/v76"
+	"github.com/stripe/stripe-go/v76/webhook"
 )
 
 type Service interface {
@@ -17,6 +22,9 @@ type Service interface {
 	
 	// สำหรับให้ Webhook เรียกใช้เมื่อจ่ายเงินสำเร็จ
 	ConfirmBooking(ctx context.Context, seatID uint) error 
+
+	// 🔴 เพิ่ม Interface สำหรับประมวลผล Webhook
+	ProcessStripeWebhook(ctx context.Context, payload []byte, signature string) error
 }
 
 type service struct {
@@ -64,7 +72,7 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 	}
 
 	// 4. สร้าง Stripe Checkout URL
-	checkoutURL, err := CreateStripeCheckout(booking.ID,req.EventID, req.SeatID, price, userID)
+	checkoutURL, err := CreateStripeCheckout(booking.ID, req.EventID, req.SeatID, price, userID)
 	if err != nil {
 		// 🔴 หากสร้าง URL จ่ายเงินไม่สำเร็จ ให้ทำการชดเชย (Compensate) โดยเรียก CancelBooking
 		log.Printf("[BookingService] Stripe checkout failed for booking %d, seat %d. Reverting: %v", booking.ID, req.SeatID, err)
@@ -84,4 +92,47 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 
 func (s *service) ConfirmBooking(ctx context.Context, seatID uint) error {
 	return s.repo.ConfirmBooking(ctx, seatID)
+}
+
+// 🔴 Implement ฟังก์ชันสำหรับประมวลผล Webhook พร้อมแกะ Metadata
+func (s *service) ProcessStripeWebhook(ctx context.Context, payload []byte, signature string) error {
+	webhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
+	if webhookSecret == "" {
+		return errors.New("missing STRIPE_WEBHOOK_SECRET")
+	}
+
+	// 1. Verify Signature และแปลงเป็น Event ของ Stripe
+	event, err := webhook.ConstructEvent(payload, signature, webhookSecret)
+	if err != nil {
+		return fmt.Errorf("invalid stripe signature: %w", err)
+	}
+
+	// 2. สนใจแค่ Event checkout.session.completed เท่านั้น
+	if event.Type != "checkout.session.completed" {
+		// Event อื่นๆ เราเพิกเฉย ไม่นับเป็น Error
+		return nil
+	}
+
+	// 3. แปลง Raw Data กลับมาเป็น Checkout Session Object เพื่ออ่าน Metadata
+	var session stripe.CheckoutSession
+	if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
+		return fmt.Errorf("failed to unmarshal checkout session: %w", err)
+	}
+
+	// 4. ดึงข้อมูลจาก Metadata
+	bookingIDStr, ok1 := session.Metadata["booking_id"]
+	seatIDStr, ok2 := session.Metadata["seat_id"]
+	if !ok1 || !ok2 {
+		return errors.New("missing booking_id or seat_id in metadata")
+	}
+
+	// 5. แปลง String เป็น uint
+	bookingID, err1 := strconv.ParseUint(bookingIDStr, 10, 32)
+	seatID, err2 := strconv.ParseUint(seatIDStr, 10, 32)
+	if err1 != nil || err2 != nil {
+		return errors.New("invalid booking_id or seat_id format in metadata")
+	}
+
+	// 6. ส่งไปอัปเดต Database ผ่าน Transaction พร้อมระบบ Idempotency
+	return s.repo.ConfirmBookingTx(ctx, event.ID, uint(bookingID), uint(seatID))
 }

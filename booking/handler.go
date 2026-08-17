@@ -3,17 +3,12 @@ package booking
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stripe/stripe-go/v76"
-	"github.com/stripe/stripe-go/v76/webhook"
 )
 
 type Handler struct {
@@ -64,49 +59,28 @@ func (h *Handler) BookSeat(c *gin.Context) {
 
 // StripeWebhook รับ Event จาก Stripe เมื่อมีการจ่ายเงินสำเร็จ
 func (h *Handler) StripeWebhook(c *gin.Context) {
-	const MaxBodyBytes = int64(65536)
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxBodyBytes)
+	// 1. ดึง Stripe-Signature จาก Header
+	signature := c.GetHeader("Stripe-Signature")
+	if signature == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing Stripe-Signature header"})
+		return
+	}
+
+	// 2. 🔴 อ่าน Raw Body ห้ามแปลงเป็น JSON เด็ดขาด เพราะต้องใช้ Verify Signature
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.String(http.StatusServiceUnavailable, "Error reading request body")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
 		return
 	}
 
-	// ใช้ Webhook Secret จาก Environment Variable (จากคำสั่ง stripe listen)
-	endpointSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
-	signatureHeader := c.GetHeader("Stripe-Signature")
-	
-	event, err := webhook.ConstructEvent(payload, signatureHeader, endpointSecret)
+	// 3. ส่งให้ Service ประมวลผล
+	err = h.service.ProcessStripeWebhook(c.Request.Context(), payload, signature)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid webhook signature"})
+		log.Printf("[Stripe Webhook Error] %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Webhook processing failed"})
 		return
 	}
 
-	// เช็คว่าการจ่ายเงินสำเร็จ
-	if event.Type == "checkout.session.completed" {
-		var session stripe.CheckoutSession
-		err := json.Unmarshal(event.Data.Raw, &session)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing webhook JSON"})
-			return
-		}
-
-		// ดึง seat_id จาก Metadata ที่เราแนบไปตอนสร้าง Checkout Session
-		seatIDStr := session.Metadata["seat_id"]
-		seatID, err := strconv.ParseUint(seatIDStr, 10, 32)
-		if err == nil {
-			// เรียกใช้ Service เพื่อยืนยันการจอง (เปลี่ยนสถานะเป็น BOOKED)
-			err = h.service.ConfirmBooking(context.Background(), uint(seatID))
-			if err != nil {
-				log.Printf("Failed to update seat status for SeatID %d: %v", seatID, err)
-			} else {
-				log.Printf("Successfully confirmed booking for SeatID %d", seatID)
-			}
-		} else {
-			log.Printf("Invalid seat_id in metadata: %s", seatIDStr)
-		}
-	}
-
-	// ส่ง 200 OK กลับไปให้ Stripe รู้ว่าเรารับทราบแล้ว
+	// 4. ตอบ 200 OK เสมอหากสำเร็จ เพื่อให้ Stripe ทราบว่าเราได้รับแล้ว
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
