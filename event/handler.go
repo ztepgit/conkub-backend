@@ -1,3 +1,4 @@
+// event/handler.go
 package event
 
 import (

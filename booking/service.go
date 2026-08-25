@@ -60,9 +60,8 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 		log.Println("Redis disabled, skipping seat lock")
 	}
 
-	// สมมติว่าดึงราคามาจาก DB ได้ 2500 บาท
-	// (ในโปรเจกต์จริง ควรดึงราคาของที่นั่งรหัส req.SeatID จากตาราง seats)
-	price := 2500.00
+	
+	
 
 	// 3. ไปทำรายการ Database Transaction (สร้าง Booking และเปลี่ยนสถานะที่นั่งเป็น PENDING)
 	// 🔴 สังเกต: เราปรับให้ BookSeatTx คืนค่า booking object กลับมาด้วยเพื่อนำ ID ไปใช้
@@ -70,6 +69,9 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 	if err != nil {
 		return "", err
 	}
+
+	// 🔴 ดึงราคาที่แท้จริงจาก Database (Source of Truth)
+	price := booking.Seat.Price
 
 	// 4. สร้าง Stripe Checkout URL
 	checkoutURL, err := CreateStripeCheckout(booking.ID, req.EventID, req.SeatID, price, userID)

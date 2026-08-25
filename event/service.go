@@ -1,3 +1,4 @@
+//event/service.go
 package event
 
 import (

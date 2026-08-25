@@ -58,6 +58,7 @@ func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint
 			UserID:  userID,
 			EventID: eventID,
 			SeatID:  seatID,
+			Seat:    seat, // 🔴 แนบข้อมูล seat ที่ SELECT FOR UPDATE มาแล้วกลับไปด้วย
 			Status:  models.BookingStatusPending,
 		}
 
