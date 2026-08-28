@@ -1,4 +1,4 @@
-//event/service.go
+// event/service.go
 package event
 
 import (
@@ -7,7 +7,6 @@ import (
 
 type Service interface {
 	GetEvents(ctx context.Context) ([]EventResponse, error)
-	// 🔴 1. เพิ่มเมธอดดึงข้อมูล Event รายตัวเข้าใน Interface
 	GetEventByID(ctx context.Context, id uint) (*EventResponse, error)
 	GetSeats(ctx context.Context, eventID uint) ([]SeatResponse, error)
 }
@@ -38,12 +37,12 @@ func (s *service) GetEvents(ctx context.Context) ([]EventResponse, error) {
 			ImageURL:         e.ImageURL,
 			ShowTime:         e.ShowTime,
 			RemainingTickets: e.RemainingTickets,
+			Price:            e.Price, // 🔴 เพิ่มการแมปข้อมูล Price จาก Repository สู่ DTO
 		})
 	}
 	return res, nil
 }
 
-// 🔴 2. เพิ่ม Implementation ของ GetEventByID โดยเรียกใช้ Repo ตรงๆ และแมปค่าเป็น EventResponse
 func (s *service) GetEventByID(ctx context.Context, id uint) (*EventResponse, error) {
 	e, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -60,10 +59,12 @@ func (s *service) GetEventByID(ctx context.Context, id uint) (*EventResponse, er
 		ImageURL:         e.ImageURL,
 		ShowTime:         e.ShowTime,
 		RemainingTickets: e.RemainingTickets,
+		Price:            e.Price, // 🔴 เพิ่มการแมปข้อมูล Price จาก Repository สู่ DTO
 	}
 	return res, nil
 }
 
+// ฟังก์ชัน GetSeats คงไว้ตามเดิม
 func (s *service) GetSeats(ctx context.Context, eventID uint) ([]SeatResponse, error) {
 	seats, err := s.repo.FindSeatsByEventID(ctx, eventID)
 	if err != nil {

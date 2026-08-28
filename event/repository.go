@@ -10,12 +10,12 @@ import (
 // 🔴 1. สร้าง Struct พิเศษสำหรับรับค่าที่มี Count มาด้วย
 type EventWithTicketCount struct {
 	models.Event
-	RemainingTickets int64 `gorm:"column:remaining_tickets"`
+	RemainingTickets int64   `gorm:"column:remaining_tickets"`
+	Price            float64 `gorm:"column:price"` // 🔴 เพิ่มฟิลด์รับราคาจาก Subquery
 }
 
 type Repository interface {
 	FindAll(ctx context.Context) ([]EventWithTicketCount, error)
-	// 🔴 2. เพิ่มฟังก์ชันสำหรับดึง Event รายตัวตาม ID (รองรับ GET /api/v1/events/:id)
 	FindByID(ctx context.Context, id uint) (*EventWithTicketCount, error)
 	FindSeatsByEventID(ctx context.Context, eventID uint) ([]models.Seat, error)
 }
@@ -31,23 +31,27 @@ func NewRepository(db *gorm.DB) Repository {
 func (r *repository) FindAll(ctx context.Context) ([]EventWithTicketCount, error) {
 	var events []EventWithTicketCount
 
-	// ใช้ SQL Subquery นับตั๋วที่ AVAILABLE
-	err := r.db.WithContext(ctx).
-		Table("events").
-		Select("events.*, (SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets").
-		Scan(&events).Error
+	// 🔴 ใช้ SQL Subquery นับตั๋วที่ AVAILABLE และดึงราคา 1 ค่าจากตาราง seats
+	err := r.db.WithContext(ctx).Model(&models.Event{}).
+		Select(`
+			events.*, 
+			(SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets,
+			(SELECT price FROM seats WHERE seats.event_id = events.id LIMIT 1) AS price
+		`).
+		Find(&events).Error
 
 	return events, err
 }
 
-// 🔴 3. เพิ่ม Implementation ของ FindByID โดยใช้ Subquery นับตั๋วเช่นเดียวกับ FindAll
-// เมื่อไม่พบข้อมูล GORM จะคืนค่า gorm.ErrRecordNotFound ซึ่ง Handler จะนำไปแปลงเป็น 404
 func (r *repository) FindByID(ctx context.Context, id uint) (*EventWithTicketCount, error) {
 	var event EventWithTicketCount
 
-	err := r.db.WithContext(ctx).
-		Table("events").
-		Select("events.*, (SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets").
+	err := r.db.WithContext(ctx).Model(&models.Event{}).
+		Select(`
+			events.*, 
+			(SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets,
+			(SELECT price FROM seats WHERE seats.event_id = events.id LIMIT 1) AS price
+		`).
 		Where("events.id = ?", id).
 		First(&event).Error
 
