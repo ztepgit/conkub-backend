@@ -88,6 +88,9 @@ func (s *service) BookSeat(ctx context.Context, userID string, req BookSeatReque
 		// Return error ส่งกลับไปหา Client
 		return "", fmt.Errorf("failed to create payment session, booking cancelled")
 	}
+
+	// 🔴 [A] ตรวจสอบว่า CreateStripeCheckout คืนค่า URL กลับมาได้หรือไม่
+	log.Printf("[Stripe] checkoutURL=%s", checkoutURL)
 	
 	return checkoutURL, nil
 }

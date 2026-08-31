@@ -50,6 +50,9 @@ func (h *Handler) BookSeat(c *gin.Context) {
 		return
 	}
 
+	// 🔴 [B] ตรวจสอบว่า Handler ส่ง URL กลับไปใน JSON Payload หรือไม่
+	log.Printf("[Stripe] Returning checkout URL: %s", checkoutURL)
+
 	// ส่ง URL กลับไปให้หน้าบ้าน เพื่อให้ Next.js ทำการ Redirect ไปจ่ายเงิน
 	c.JSON(http.StatusOK, gin.H{
 		"message": "seat locked, proceed to payment",
