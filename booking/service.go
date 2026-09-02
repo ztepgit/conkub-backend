@@ -107,7 +107,10 @@ func (s *service) ProcessStripeWebhook(ctx context.Context, payload []byte, sign
 	}
 
 	// 1. Verify Signature และแปลงเป็น Event ของ Stripe
-	event, err := webhook.ConstructEvent(payload, signature, webhookSecret)
+	// 🔴 เปลี่ยนมาใช้ ConstructEventWithOptions เพื่อตั้งค่า IgnoreAPIVersionMismatch: true
+	event, err := webhook.ConstructEventWithOptions(payload, signature, webhookSecret, webhook.ConstructEventOptions{
+		IgnoreAPIVersionMismatch: true,
+	})
 	if err != nil {
 		return fmt.Errorf("invalid stripe signature: %w", err)
 	}
