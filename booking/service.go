@@ -25,6 +25,8 @@ type Service interface {
 
 	// 🔴 เพิ่ม Interface สำหรับประมวลผล Webhook
 	ProcessStripeWebhook(ctx context.Context, payload []byte, signature string) error
+
+	ExpirePendingBookings(ctx context.Context) error
 }
 
 type service struct {
@@ -143,4 +145,8 @@ func (s *service) ProcessStripeWebhook(ctx context.Context, payload []byte, sign
 
 	// 6. ส่งไปอัปเดต Database ผ่าน Transaction พร้อมระบบ Idempotency
 	return s.repo.ConfirmBookingTx(ctx, event.ID, uint(bookingID), uint(seatID))
+}
+
+func (s *service) ExpirePendingBookings(ctx context.Context) error {
+	return s.repo.ExpirePendingBookings(ctx)
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context" // 🔴 เพิ่ม Import context สำหรับ background worker
 	"log"
 	"time"
 
@@ -33,6 +34,21 @@ func main() {
 	bookingService := booking.NewService(bookingRepo, redisClient)
 	bookingHandler := booking.NewHandler(bookingService)
 
+	// 🔴 เพิ่ม Ticker สำหรับ Expire Bookings ทำงานเบื้องหลังทุก 1 นาที
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := bookingService.ExpirePendingBookings(context.Background()); err != nil {
+					log.Printf("[Expiry Worker] failed to expire pending bookings: %v", err)
+				}
+			}
+		}
+	}()
+
 	// 4. Setup Gin Router
 	r := gin.Default()
 
@@ -57,7 +73,7 @@ func main() {
 		api.GET("/events", eventHandler.GetEvents)
 		api.GET("/events/:id", eventHandler.GetEventByID) // 🔴 เพิ่ม Route สำหรับดึงรายละเอียด Event 1 งาน (GET /api/v1/events/1)
 		api.GET("/events/:id/seats", eventHandler.GetSeats)
-		
+
 		// 🔴 เพิ่ม Endpoint สำหรับ Stripe Webhook (ต้องเป็น Public)
 		api.POST("/webhook/stripe", bookingHandler.StripeWebhook)
 	}

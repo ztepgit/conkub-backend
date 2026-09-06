@@ -19,4 +19,5 @@ type Booking struct {
 	Seat      Seat      `gorm:"foreignKey:SeatID"`
 	Status    BookingStatus `gorm:"column:status;not null;default:'PENDING'" json:"status"`
 	CreatedAt time.Time
+	ExpiresAt *time.Time
 }

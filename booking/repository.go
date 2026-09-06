@@ -1,10 +1,10 @@
-// booking/repository.go
 package booking
 
 import (
 	"context"
 	"errors"
-	"fmt" // 🔴 เพิ่ม fmt สำหรับใช้คืนค่า error ด้วย fmt.Errorf
+	"fmt"
+	"time" // 🔴 เพิ่ม time สำหรับจัดการเวลาหมดอายุ
 
 	"conkub-backend/models"
 
@@ -17,8 +17,8 @@ type Repository interface {
 	BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) (*models.Booking, error)
 	ConfirmBooking(ctx context.Context, seatID uint) error
 	CancelBooking(ctx context.Context, bookingID uint, seatID uint) error
-	// 🔴 เพิ่มฟังก์ชัน ConfirmBookingTx แบบมี Idempotency และเช็ค State
 	ConfirmBookingTx(ctx context.Context, stripeEventID string, bookingID uint, seatID uint) error
+	ExpirePendingBookings(ctx context.Context) error // 🔴 เพิ่มฟังก์ชันสำหรับคืนที่นั่งเมื่อหมดเวลา
 }
 
 type repository struct {
@@ -53,13 +53,17 @@ func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint
 			return err
 		}
 
+		// 🔴 สร้างเวลาหมดอายุ 5 นาที
+		expiresAt := time.Now().Add(5 * time.Minute)
+
 		// 4. บันทึกประวัติการจองลงตาราง bookings
 		booking = models.Booking{
-			UserID:  userID,
-			EventID: eventID,
-			SeatID:  seatID,
-			Seat:    seat, // 🔴 แนบข้อมูล seat ที่ SELECT FOR UPDATE มาแล้วกลับไปด้วย
-			Status:  models.BookingStatusPending,
+			UserID:    userID,
+			EventID:   eventID,
+			SeatID:    seatID,
+			Seat:      seat, // แนบข้อมูล seat ที่ SELECT FOR UPDATE มาแล้วกลับไปด้วย
+			Status:    models.BookingStatusPending,
+			ExpiresAt: &expiresAt, // 🔴 ผูกเวลาหมดอายุ
 		}
 
 		if err := tx.Create(&booking).Error; err != nil {
@@ -112,7 +116,7 @@ func (r *repository) CancelBooking(ctx context.Context, bookingID uint, seatID u
 	return tx.Commit().Error
 }
 
-// 🔴 Implement ฟังก์ชัน ConfirmBookingTx
+// ConfirmBookingTx แบบมี Idempotency และเช็ค State
 func (r *repository) ConfirmBookingTx(ctx context.Context, stripeEventID string, bookingID uint, seatID uint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 1. Idempotency Check: เคยทำ Event นี้ไปหรือยัง?
@@ -131,12 +135,12 @@ func (r *repository) ConfirmBookingTx(ctx context.Context, stripeEventID string,
 			return fmt.Errorf("booking not found: %w", err)
 		}
 
-		// 🔴 3. Verify SeatID จาก Metadata
+		// 3. Verify SeatID จาก Metadata
 		if booking.SeatID != seatID {
 			return fmt.Errorf("metadata seat_id %d does not match booking seat_id %d", seatID, booking.SeatID)
 		}
 
-		// 🔴 4. State Machine Validation
+		// 4. State Machine Validation
 		if booking.Status == models.BookingStatusConfirmed {
 			// ถ้าชำระแล้ว (CONFIRMED) ให้ข้ามไปและบันทึก Event ไว้ได้เลย (Idempotent)
 			webhookEvent = models.StripeWebhookEvent{StripeEventID: stripeEventID, EventType: "checkout.session.completed"}
@@ -170,6 +174,43 @@ func (r *repository) ConfirmBookingTx(ctx context.Context, stripeEventID string,
 		}
 		if err := tx.Create(&webhookEvent).Error; err != nil {
 			return fmt.Errorf("failed to save webhook event: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// 🔴 Implement ฟังก์ชัน ExpirePendingBookings
+func (r *repository) ExpirePendingBookings(ctx context.Context) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var expiredBookings []models.Booking
+
+		// 1. ค้นหาและ Lock Booking ที่หมดเวลาและยังเป็น PENDING
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("status = ? AND expires_at < ?", models.BookingStatusPending, time.Now()).
+			Find(&expiredBookings).Error; err != nil {
+			return err
+		}
+
+		for _, b := range expiredBookings {
+			// 2. ตรวจสอบสถานะอีกครั้งเพื่อป้องกัน Race Condition กับ Webhook
+			if b.Status != models.BookingStatusPending {
+				continue
+			}
+
+			// 3. เปลี่ยน Booking เป็น CANCELLED
+			if err := tx.Model(&models.Booking{}).
+				Where("id = ?", b.ID).
+				Update("status", models.BookingStatusCancelled).Error; err != nil {
+				return err
+			}
+
+			// 4. คืน Seat กลับเป็น AVAILABLE
+			if err := tx.Model(&models.Seat{}).
+				Where("id = ?", b.SeatID).
+				Update("status", models.SeatStatusAvailable).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
