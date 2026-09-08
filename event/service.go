@@ -3,10 +3,11 @@ package event
 
 import (
 	"context"
+	"time"
 )
 
 type Service interface {
-	GetEvents(ctx context.Context) ([]EventResponse, error)
+	GetEvents(ctx context.Context, search, location string, parsedDate *time.Time) ([]EventResponse, error)
 	GetEventByID(ctx context.Context, id uint) (*EventResponse, error)
 	GetSeats(ctx context.Context, eventID uint) ([]SeatResponse, error)
 }
@@ -19,8 +20,9 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-func (s *service) GetEvents(ctx context.Context) ([]EventResponse, error) {
-	events, err := s.repo.FindAll(ctx)
+func (s *service) GetEvents(ctx context.Context, search, location string, parsedDate *time.Time) ([]EventResponse, error) {
+	// 🔴 ส่งผ่านพารามิเตอร์ค้นหาไปยัง Repository
+	events, err := s.repo.FindAll(ctx, search, location, parsedDate)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +39,7 @@ func (s *service) GetEvents(ctx context.Context) ([]EventResponse, error) {
 			ImageURL:         e.ImageURL,
 			ShowTime:         e.ShowTime,
 			RemainingTickets: e.RemainingTickets,
-			Price:            e.Price, // 🔴 เพิ่มการแมปข้อมูล Price จาก Repository สู่ DTO
+			Price:            e.Price, // 🔴 คงการแมปข้อมูล Price จาก Repository สู่ DTO ไว้
 		})
 	}
 	return res, nil
@@ -59,7 +61,7 @@ func (s *service) GetEventByID(ctx context.Context, id uint) (*EventResponse, er
 		ImageURL:         e.ImageURL,
 		ShowTime:         e.ShowTime,
 		RemainingTickets: e.RemainingTickets,
-		Price:            e.Price, // 🔴 เพิ่มการแมปข้อมูล Price จาก Repository สู่ DTO
+		Price:            e.Price, // 🔴 คงการแมปข้อมูล Price จาก Repository สู่ DTO ไว้
 	}
 	return res, nil
 }
