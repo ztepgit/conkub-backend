@@ -34,11 +34,12 @@ func (r *repository) FindAll(ctx context.Context, search, location string, parse
 	var events []EventWithTicketCount
 
 	// เริ่มสร้าง Query พื้นฐานที่คง Logic เดิมเอาไว้ 100%
+	// เริ่มสร้าง Query พื้นฐานที่คง Logic เดิมเอาไว้ 100%
 	query := r.db.WithContext(ctx).Model(&models.Event{}).
 		Select(`
 			events.*, 
 			(SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets,
-			(SELECT price FROM seats WHERE seats.event_id = events.id LIMIT 1) AS price
+			(SELECT MIN(price) FROM seats WHERE seats.event_id = events.id) AS price -- 🔴 เปลี่ยนจาก LIMIT 1 เป็น MIN(price) ตรงนี้
 		`)
 
 	// เช็คเงื่อนไข Search (ใช้ ILIKE เพื่อไม่สนใจตัวพิมพ์เล็ก-ใหญ่)
@@ -71,7 +72,7 @@ func (r *repository) FindByID(ctx context.Context, id uint) (*EventWithTicketCou
 		Select(`
 			events.*, 
 			(SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets,
-			(SELECT price FROM seats WHERE seats.event_id = events.id LIMIT 1) AS price
+			(SELECT MIN(price) FROM seats WHERE seats.event_id = events.id) AS price -- 🔴 เปลี่ยนจาก LIMIT 1 เป็น MIN(price) ตรงนี้
 		`).
 		Where("events.id = ?", id).
 		First(&event).Error
