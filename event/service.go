@@ -79,6 +79,7 @@ func (s *service) GetSeats(ctx context.Context, eventID uint) ([]SeatResponse, e
 			ID:     st.ID,
 			Row:    st.Row,
 			Number: st.Number,
+			SeatType: st.SeatType,
 			Price:  st.Price,
 			Status: string(st.Status),
 		})

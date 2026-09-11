@@ -22,6 +22,7 @@ type SeatResponse struct {
 	ID     uint    `json:"id"`
 	Row    string  `json:"row"`
 	Number int     `json:"number"`
+	SeatType string  `json:"seat_type"` // "REGULAR" หรือ "VIP"
 	Price  float64 `json:"price"`
 	Status string  `json:"status"` // "AVAILABLE" หรือ "BOOKED"
 }

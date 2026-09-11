@@ -17,6 +17,7 @@ type Seat struct {
 	Event     Event      `gorm:"foreignKey:EventID"` // Relation
 	Row       string     `gorm:"type:varchar(10);not null"`
 	Number    int        `gorm:"not null"`
+	SeatType  string     `gorm:"type:varchar(50);not null;default:'REGULAR'"`
 	Price     float64    `gorm:"not null"`
 	Status    SeatStatus `gorm:"type:varchar(20);default:'AVAILABLE';not null"`
 	CreatedAt time.Time
