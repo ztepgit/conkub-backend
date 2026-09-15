@@ -44,7 +44,7 @@ func RequireAuth(jwksURL string) gin.HandlerFunc {
 
 		// 3. Parse และ Validate JWT ดึง Public Key จาก jwks
 		token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-			// 🔴 ตรวจสอบว่าอัลกอริทึมต้องเป็น ECDSA และระบุอย่างเจาะจงว่าเป็น "ES256" เท่านั้น
+			// ตรวจสอบว่าอัลกอริทึมต้องเป็น ECDSA และระบุอย่างเจาะจงว่าเป็น "ES256" เท่านั้น
 			if _, ok := t.Method.(*jwt.SigningMethodECDSA); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 			}
@@ -78,7 +78,7 @@ func RequireAuth(jwksURL string) gin.HandlerFunc {
 			return
 		}
 
-		// 🔴 Debug Log ที่ปลอดภัย (Log การตรวจสอบอัลกอริทึมสำเร็จ และแสดง UserID)
+		// Debug Log ที่ปลอดภัย (Log การตรวจสอบอัลกอริทึมสำเร็จ และแสดง UserID)
 		log.Printf("[Auth Middleware] Successfully verified ES256 token for user: %s", userID)
 
 		// 5. ส่ง UserID ไปให้ Handler ต่อไปใช้งาน (เช่น ตอนบันทึกข้อมูลการจอง)

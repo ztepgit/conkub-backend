@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time" // 🔴 เพิ่ม time สำหรับจัดการเวลาหมดอายุ
+	"time" // เพิ่ม time สำหรับจัดการเวลาหมดอายุ
 
 	"conkub-backend/models"
 
@@ -53,7 +53,7 @@ func (r *repository) BookSeatTx(ctx context.Context, userID string, eventID uint
 			return err
 		}
 
-		// 🔴 สร้างเวลาหมดอายุ 5 นาที
+		// สร้างเวลาหมดอายุ 5 นาที
 		expiresAt := time.Now().Add(5 * time.Minute)
 
 		// 4. บันทึกประวัติการจองลงตาราง bookings
@@ -180,7 +180,7 @@ func (r *repository) ConfirmBookingTx(ctx context.Context, stripeEventID string,
 	})
 }
 
-// 🔴 Implement ฟังก์ชัน ExpirePendingBookings
+// Implement ฟังก์ชัน ExpirePendingBookings
 func (r *repository) ExpirePendingBookings(ctx context.Context) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var expiredBookings []models.Booking

@@ -1,18 +1,18 @@
+// db/redis.go
 package db
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
-func InitRedis(url, password string) *redis.Client {
-	// 1. เพิ่มเช็ค URL ว่าง ให้ข้ามการเชื่อมต่อ
+func InitRedis(url, password string) (*redis.Client, error) {
+	// เช็ค URL ว่าง ให้ return error ทันที
 	if url == "" {
-		log.Println("Redis disabled: URL is empty")
-		return nil
+		return nil, fmt.Errorf("Redis URL is empty")
 	}
 
 	client := redis.NewClient(&redis.Options{
@@ -26,12 +26,10 @@ func InitRedis(url, password string) *redis.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 2. เปลี่ยนจาก Fatalf เป็น Printf และ return nil เพื่อไม่ให้ Backend แครช
+	// เช็ค Ping ถ้าพังให้ return error ทันที
 	if err := client.Ping(ctx).Err(); err != nil {
-		log.Printf("Redis unavailable, running without Redis: %v\n", err)
-		return nil
+		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	log.Println("Redis connected successfully")
-	return client
+	return client, nil
 }

@@ -9,11 +9,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// 🔴 1. สร้าง Struct พิเศษสำหรับรับค่าที่มี Count มาด้วย
+// 1. สร้าง Struct พิเศษสำหรับรับค่าที่มี Count มาด้วย
 type EventWithTicketCount struct {
 	models.Event
 	RemainingTickets int64   `gorm:"column:remaining_tickets"`
-	Price            float64 `gorm:"column:price"` // 🔴 เพิ่มฟิลด์รับราคาจาก Subquery
+	Price            float64 `gorm:"column:price"` // เพิ่มฟิลด์รับราคาจาก Subquery
 }
 
 type Repository interface {
@@ -39,7 +39,7 @@ func (r *repository) FindAll(ctx context.Context, search, location string, parse
 		Select(`
 			events.*, 
 			(SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets,
-			(SELECT MIN(price) FROM seats WHERE seats.event_id = events.id) AS price -- 🔴 เปลี่ยนจาก LIMIT 1 เป็น MIN(price) ตรงนี้
+			(SELECT MIN(price) FROM seats WHERE seats.event_id = events.id) AS price -- เปลี่ยนจาก LIMIT 1 เป็น MIN(price) ตรงนี้
 		`)
 
 	// เช็คเงื่อนไข Search (ใช้ ILIKE เพื่อไม่สนใจตัวพิมพ์เล็ก-ใหญ่)
@@ -59,7 +59,7 @@ func (r *repository) FindAll(ctx context.Context, search, location string, parse
 		query = query.Where("events.show_time >= ? AND events.show_time < ?", startOfDay, startOfNextDay)
 	}
 
-	// 🔴 รัน Query พร้อม Subquery นับตั๋วที่ AVAILABLE และดึงราคา
+	// รัน Query พร้อม Subquery นับตั๋วที่ AVAILABLE และดึงราคา
 	err := query.Find(&events).Error
 
 	return events, err
@@ -72,7 +72,7 @@ func (r *repository) FindByID(ctx context.Context, id uint) (*EventWithTicketCou
 		Select(`
 			events.*, 
 			(SELECT COUNT(*) FROM seats WHERE seats.event_id = events.id AND seats.status = 'AVAILABLE') AS remaining_tickets,
-			(SELECT MIN(price) FROM seats WHERE seats.event_id = events.id) AS price -- 🔴 เปลี่ยนจาก LIMIT 1 เป็น MIN(price) ตรงนี้
+			(SELECT MIN(price) FROM seats WHERE seats.event_id = events.id) AS price -- เปลี่ยนจาก LIMIT 1 เป็น MIN(price) ตรงนี้
 		`).
 		Where("events.id = ?", id).
 		First(&event).Error

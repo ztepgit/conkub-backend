@@ -69,7 +69,7 @@ func (h *handler) GetEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": events})
 }
 
-// 🔴 คงฟังก์ชัน GetEventByID สำหรับรองรับ Route: GET /api/v1/events/:id
+// คงฟังก์ชัน GetEventByID สำหรับรองรับ Route: GET /api/v1/events/:id
 func (h *handler) GetEventByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -97,7 +97,7 @@ func (h *handler) GetEventByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": event})
 }
 
-// 🔴 คงฟังก์ชัน GetSeats ไว้เหมือนเดิม
+// คงฟังก์ชัน GetSeats ไว้เหมือนเดิม
 func (h *handler) GetSeats(c *gin.Context) {
 	eventIDStr := c.Param("id")
 	eventID, err := strconv.ParseUint(eventIDStr, 10, 32)

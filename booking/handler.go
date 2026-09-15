@@ -50,7 +50,7 @@ func (h *Handler) BookSeat(c *gin.Context) {
 		return
 	}
 
-	// 🔴 [B] ตรวจสอบว่า Handler ส่ง URL กลับไปใน JSON Payload หรือไม่
+	// [B] ตรวจสอบว่า Handler ส่ง URL กลับไปใน JSON Payload หรือไม่
 	log.Printf("[Stripe] Returning checkout URL: %s", checkoutURL)
 
 	// ส่ง URL กลับไปให้หน้าบ้าน เพื่อให้ Next.js ทำการ Redirect ไปจ่ายเงิน
@@ -69,7 +69,7 @@ func (h *Handler) StripeWebhook(c *gin.Context) {
 		return
 	}
 
-	// 2. 🔴 อ่าน Raw Body ห้ามแปลงเป็น JSON เด็ดขาด เพราะต้องใช้ Verify Signature
+	// 2. อ่าน Raw Body ห้ามแปลงเป็น JSON เด็ดขาด เพราะต้องใช้ Verify Signature
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})

@@ -13,7 +13,7 @@ type Config struct {
 	DatabaseURL       string
 	RedisURL          string
 	RedisPassword     string
-	SupabaseJWKSURL   string // 🔴 1. เพิ่มตัวแปรสำหรับ JWKS URL
+	SupabaseJWKSURL   string // 1. เพิ่มตัวแปรสำหรับ JWKS URL
 }
 
 func LoadConfig() *Config {
@@ -27,7 +27,7 @@ func LoadConfig() *Config {
 		DatabaseURL:       getEnv("DATABASE_URL", ""),
 		RedisURL:          getEnv("REDIS_URL", "localhost:6379"),
 		RedisPassword:     getEnv("REDIS_PASSWORD", ""),
-		SupabaseJWKSURL:   getEnv("SUPABASE_JWKS_URL", ""), // 🔴 2. โหลดจาก ENV
+		SupabaseJWKSURL:   getEnv("SUPABASE_JWKS_URL", ""), // 2. โหลดจาก ENV
 	}
 }
 

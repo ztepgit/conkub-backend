@@ -9,7 +9,7 @@ import (
 	"github.com/stripe/stripe-go/v76/checkout/session"
 )
 
-// 🔴 เพิ่ม bookingID เข้ามาใน Signature เพื่อเตรียมความพร้อมสำหรับ Webhook
+// เพิ่ม bookingID เข้ามาใน Signature เพื่อเตรียมความพร้อมสำหรับ Webhook
 func CreateStripeCheckout(bookingID uint, eventID uint, seatID uint, price float64, userID string) (string, error) {
 	stripe.Key = os.Getenv("STRIPE_SECRET_KEY")
 
@@ -20,7 +20,7 @@ func CreateStripeCheckout(bookingID uint, eventID uint, seatID uint, price float
 	}
 
 	params := &stripe.CheckoutSessionParams{
-		// 🔴 รวมช่องทางการชำระเงินทั้ง Card และ PromptPay
+		// รวมช่องทางการชำระเงินทั้ง Card และ PromptPay
 		PaymentMethodTypes: stripe.StringSlice([]string{"card", "promptpay"}),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
@@ -37,7 +37,7 @@ func CreateStripeCheckout(bookingID uint, eventID uint, seatID uint, price float
 		},
 		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
 		
-		// 🔴 ส่ง Metadata ไปครบถ้วน โดยมี booking_id เป็น Primary Identifier สำหรับ Webhook
+		// ส่ง Metadata ไปครบถ้วน โดยมี booking_id เป็น Primary Identifier สำหรับ Webhook
 		Metadata: map[string]string{
 			"booking_id": strconv.FormatUint(uint64(bookingID), 10),
 			"event_id":   strconv.FormatUint(uint64(eventID), 10),

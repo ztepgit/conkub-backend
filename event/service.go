@@ -21,7 +21,7 @@ func NewService(repo Repository) Service {
 }
 
 func (s *service) GetEvents(ctx context.Context, search, location string, parsedDate *time.Time) ([]EventResponse, error) {
-	// 🔴 ส่งผ่านพารามิเตอร์ค้นหาไปยัง Repository
+	// ส่งผ่านพารามิเตอร์ค้นหาไปยัง Repository
 	events, err := s.repo.FindAll(ctx, search, location, parsedDate)
 	if err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func (s *service) GetEvents(ctx context.Context, search, location string, parsed
 			ImageURL:         e.ImageURL,
 			ShowTime:         e.ShowTime,
 			RemainingTickets: e.RemainingTickets,
-			Price:            e.Price, // 🔴 คงการแมปข้อมูล Price จาก Repository สู่ DTO ไว้
+			Price:            e.Price, // คงการแมปข้อมูล Price จาก Repository สู่ DTO ไว้
 		})
 	}
 	return res, nil
@@ -61,7 +61,7 @@ func (s *service) GetEventByID(ctx context.Context, id uint) (*EventResponse, er
 		ImageURL:         e.ImageURL,
 		ShowTime:         e.ShowTime,
 		RemainingTickets: e.RemainingTickets,
-		Price:            e.Price, // 🔴 คงการแมปข้อมูล Price จาก Repository สู่ DTO ไว้
+		Price:            e.Price, // คงการแมปข้อมูล Price จาก Repository สู่ DTO ไว้
 	}
 	return res, nil
 }
