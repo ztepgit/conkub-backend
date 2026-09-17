@@ -1,3 +1,4 @@
+// booking/repository.go
 package booking
 
 import (
@@ -12,6 +13,17 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// 🔴 เพิ่ม Struct สำหรับรับข้อมูลตั๋วที่ Join มาแล้ว
+type MyTicket struct {
+	ID        uint      `json:"id"`
+	EventName string    `json:"event_name"`
+	ShowTime  time.Time `json:"show_time"`
+	Venue     string    `json:"venue"`
+	SeatType  string    `json:"seat_type"`
+	Price     float64   `json:"price"`
+	Status    string    `json:"status"`
+}
+
 // Repository interface ประกาศ method ที่จำเป็นทั้งหมด
 type Repository interface {
 	BookSeatTx(ctx context.Context, userID string, eventID uint, seatID uint) (*models.Booking, error)
@@ -19,6 +31,7 @@ type Repository interface {
 	CancelBooking(ctx context.Context, bookingID uint, seatID uint) error
 	ConfirmBookingTx(ctx context.Context, stripeEventID string, bookingID uint, seatID uint) error
 	ExpirePendingBookings(ctx context.Context) error // 🔴 เพิ่มฟังก์ชันสำหรับคืนที่นั่งเมื่อหมดเวลา
+	GetMyTickets(ctx context.Context, userID string) ([]MyTicket, error) // 🔴 เพิ่มฟังก์ชันดึงตั๋ว
 }
 
 type repository struct {
@@ -215,4 +228,25 @@ func (r *repository) ExpirePendingBookings(ctx context.Context) error {
 
 		return nil
 	})
+}
+
+// 🔴 Implement ฟังก์ชัน GetMyTickets
+func (r *repository) GetMyTickets(ctx context.Context, userID string) ([]MyTicket, error) {
+	var tickets []MyTicket
+
+	// ใช้ Raw Query ร่วมกับ ? เพื่อป้องกัน SQL Injection แบบ GORM
+	query := `
+		SELECT b.id, e.name AS event_name, e.show_time, e.venue, s.seat_type, s.price, b.status
+		FROM bookings b
+		JOIN events e ON b.event_id = e.id
+		JOIN seats s ON b.seat_id = s.id
+		WHERE b.user_id = ? AND b.status = 'CONFIRMED'
+		ORDER BY b.created_at DESC
+	`
+
+	if err := r.db.WithContext(ctx).Raw(query, userID).Scan(&tickets).Error; err != nil {
+		return nil, err
+	}
+
+	return tickets, nil
 }

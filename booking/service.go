@@ -27,6 +27,8 @@ type Service interface {
 	ProcessStripeWebhook(ctx context.Context, payload []byte, signature string) error
 
 	ExpirePendingBookings(ctx context.Context) error
+
+	GetMyTickets(ctx context.Context, userID string) ([]MyTicket, error)
 }
 
 type service struct {
@@ -141,4 +143,8 @@ func (s *service) ProcessStripeWebhook(ctx context.Context, payload []byte, sign
 
 func (s *service) ExpirePendingBookings(ctx context.Context) error {
 	return s.repo.ExpirePendingBookings(ctx)
+}
+
+func (s *service) GetMyTickets(ctx context.Context, userID string) ([]MyTicket, error) {
+	return s.repo.GetMyTickets(ctx, userID)
 }

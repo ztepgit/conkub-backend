@@ -90,6 +90,7 @@ func main() {
 	{
 		// หน้าบ้านจะต้องส่ง Header -> Authorization: Bearer <Supabase_Token>
 		protected.POST("/bookings", bookingHandler.BookSeat)
+		protected.GET("/bookings/me", bookingHandler.GetMyTickets)
 	}
 
 	// 5. Start Server

@@ -87,3 +87,27 @@ func (h *Handler) StripeWebhook(c *gin.Context) {
 	// 4. ตอบ 200 OK เสมอหากสำเร็จ เพื่อให้ Stripe ทราบว่าเราได้รับแล้ว
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
+
+// 🔴 เพิ่ม Handler สำหรับดึงตั๋วของฉัน
+func (h *Handler) GetMyTickets(c *gin.Context) {
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	tickets, err := h.service.GetMyTickets(ctx, userID)
+	if err != nil {
+		log.Printf("[GetMyTickets] Error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tickets"})
+		return
+	}
+
+	// ส่งข้อมูลกลับไปในรูปแบบ JSON { "data": [...] }
+	c.JSON(http.StatusOK, gin.H{
+		"data": tickets,
+	})
+}
