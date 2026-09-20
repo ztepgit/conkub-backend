@@ -20,6 +20,8 @@ type MyTicket struct {
 	ShowTime  time.Time `json:"show_time"`
 	Venue     string    `json:"venue"`
 	SeatType  string    `json:"seat_type"`
+	Row       string    `json:"row"`     
+	Number    int       `json:"number"`
 	Price     float64   `json:"price"`
 	Status    string    `json:"status"`
 }
@@ -236,7 +238,7 @@ func (r *repository) GetMyTickets(ctx context.Context, userID string) ([]MyTicke
 
 	// ใช้ Raw Query ร่วมกับ ? เพื่อป้องกัน SQL Injection แบบ GORM
 	query := `
-		SELECT b.id, e.name AS event_name, e.show_time, e.venue, s.seat_type, s.price, b.status
+		SELECT b.id, e.name AS event_name, e.show_time, e.venue, s.seat_type, s.row, s.number, s.price, b.status
 		FROM bookings b
 		JOIN events e ON b.event_id = e.id
 		JOIN seats s ON b.seat_id = s.id
