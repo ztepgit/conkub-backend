@@ -3,6 +3,7 @@ package db
 
 import (
 	"context"
+	"crypto/tls" // 🔴 1. เพิ่ม import crypto/tls
 	"fmt"
 	"time"
 
@@ -19,8 +20,12 @@ func InitRedis(url, password string) (*redis.Client, error) {
 		Addr:         url,
 		Password:     password,
 		DB:           0,
-		PoolSize:     100, // รองรับ High Concurrency (คงโค้ดเดิมของคุณไว้)
+		PoolSize:     100, // รองรับ High Concurrency (โค้ดเดิม)
 		MinIdleConns: 10,
+		// 🔴 2. เพิ่ม TLSConfig เพื่อให้เชื่อมต่อกับ Upstash (บน Cloud) ได้
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
