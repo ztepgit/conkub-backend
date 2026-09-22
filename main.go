@@ -59,7 +59,7 @@ func main() {
 
 	// ติดตั้ง CORS Middleware ก่อน Route และ Auth ทั้งหมด
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"}, // รองรับ Frontend URL
+		AllowOrigins:     []string{"http://localhost:3000","https://conkub.vercel.app"}, // รองรับ Frontend URL
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
